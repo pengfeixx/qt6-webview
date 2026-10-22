@@ -1,10 +1,4 @@
 usr/include/${DEB_HOST_MULTIARCH}/qt6/QtWebView/6.*
 usr/include/${DEB_HOST_MULTIARCH}/qt6/QtWebViewQuick/6.*
-usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Qml/QmlPlugins/Qt6qtwebviewquickpluginAdditionalTargetInfo.cmake
-usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Qml/QmlPlugins/Qt6qtwebviewquickpluginConfig.cmake
-usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Qml/QmlPlugins/Qt6qtwebviewquickpluginConfigVersion.cmake
-usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Qml/QmlPlugins/Qt6qtwebviewquickpluginConfigVersionImpl.cmake
-usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Qml/QmlPlugins/Qt6qtwebviewquickpluginTargets-none.cmake
-usr/lib/${DEB_HOST_MULTIARCH}/cmake/Qt6Qml/QmlPlugins/Qt6qtwebviewquickpluginTargets.cmake
 usr/lib/${DEB_HOST_MULTIARCH}/qt6/mkspecs/modules/qt_lib_webview_private.pri
 usr/lib/${DEB_HOST_MULTIARCH}/qt6/mkspecs/modules/qt_lib_webviewquick_private.pri

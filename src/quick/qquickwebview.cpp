@@ -1,10 +1,13 @@
 // Copyright (C) 2017 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
+// Qt-Security score:significant reason:default
 
 #include "qquickwebview_p.h"
 #include "qquickwebviewloadrequest_p.h"
 #include "qquickwebviewsettings_p.h"
-#include <QtWebView/private/qwebviewloadrequest_p.h>
+#include <QtWebView/qwebviewloadinginfo.h>
+#include <QtWebView/private/qwebviewfactory_p.h>
+#include <QtWebView/private/qwebview_p.h>
 #include <QtQml/qqmlengine.h>
 #include <QtCore/qmutex.h>
 
@@ -59,20 +62,24 @@ Q_GLOBAL_STATIC(CallbackStorage, callbacks)
 */
 
 QQuickWebView::QQuickWebView(QQuickItem *parent)
-    : QQuickViewController(parent)
-    , m_webView(new QWebView(this))
-    , m_settings(new QQuickWebViewSettings(m_webView->getSettings(), this))
+    : QQuickWindowContainer(parent),
+      m_webView(new QWebView(QWebViewFactory::Hint::QuickInitialization)),
+      m_settings(new QQuickWebViewSettings(m_webView->settings()))
 {
-    setView(m_webView);
+    if (QWindow *nativeWindow = m_webView->d->nativeWindow())
+        setContainedWindow(nativeWindow);
+
     connect(m_webView, &QWebView::titleChanged, this, &QQuickWebView::titleChanged);
     connect(m_webView, &QWebView::urlChanged, this, &QQuickWebView::urlChanged);
     connect(m_webView, &QWebView::loadProgressChanged, this, &QQuickWebView::loadProgressChanged);
     connect(m_webView, &QWebView::loadingChanged, this, &QQuickWebView::onLoadingChanged);
-    connect(m_webView, &QWebView::requestFocus, this, &QQuickWebView::onFocusRequest);
-    connect(m_webView, &QWebView::javaScriptResult, this, &QQuickWebView::onRunJavaScriptResult);
-    connect(m_webView, &QWebView::httpUserAgentChanged, this, &QQuickWebView::httpUserAgentChanged);
+    connect(m_webView, &QWebView::httpUserAgentStringChanged,
+            this, &QQuickWebView::httpUserAgentChanged);
     connect(m_webView, &QWebView::cookieAdded, this, &QQuickWebView::cookieAdded);
     connect(m_webView, &QWebView::cookieRemoved, this, &QQuickWebView::cookieRemoved);
+
+    m_webView->QObject::setParent(this);
+    m_settings->QObject::setParent(this);
 }
 
 QQuickWebView::~QQuickWebView() { }
@@ -81,18 +88,22 @@ QQuickWebView::~QQuickWebView() { }
   \qmlproperty url QtWebView::WebView::httpUserAgent
   \since QtWebView 1.14
   The user agent in use.
+*/
+/*!
+  \qmlsignal QtWebView::WebView::httpUserAgentChanged(string userAgent)
+  This signal is emitted whenever the \a userAgent of the view changes.
 
-  \note on WinRT, this property affects all WebViews of the application.
+  \sa httpUserAgent
 */
 
 void QQuickWebView::setHttpUserAgent(const QString &userAgent)
 {
-    m_webView->setHttpUserAgent(userAgent);
+    m_webView->setHttpUserAgentString(userAgent);
 }
 
 QString QQuickWebView::httpUserAgent() const
 {
-    return m_webView->httpUserAgent();
+    return m_webView->httpUserAgentString();
 }
 
 /*!
@@ -106,6 +117,12 @@ QString QQuickWebView::httpUserAgent() const
 
   \note The WebView does not support loading content through the Qt Resource system.
 */
+/*!
+    \qmlsignal QtWebView::WebView::urlChanged(url url)
+    This signal is emitted whenever the \a url of the view changes.
+
+    \sa url
+*/
 
 void QQuickWebView::setUrl(const QUrl &url)
 {
@@ -118,7 +135,12 @@ void QQuickWebView::setUrl(const QUrl &url)
 
   The title of the currently loaded web page.
 */
+/*!
+  \qmlsignal QtWebView::WebView::titleChanged(string title)
+  This signal is emitted whenever the \a title of the view changes.
 
+  \sa title
+*/
 QString QQuickWebView::title() const
 {
     return m_webView->title();
@@ -159,6 +181,20 @@ bool QQuickWebView::canGoForward() const
 
   The current load progress of the web content, represented as
   an integer between 0 and 100.
+*/
+/*!
+  \qmlsignal QtWebView::WebView::loadProgressChanged(int loadProgress)
+
+  This signal is continuously emitted during the loading of a web page.
+  The \a loadProgress parameter is a value between 0 and 100, indicating
+  what percentage of the web page has been loaded. The intended use
+  for this is to display a progress bar to the user.
+
+  \note Some backends do not support fractional load progress changes,
+  and will only emit this signal at the start and end of a load, with
+  values of 0 and 100, respecively.
+
+  \sa loadingChanged
 */
 int QQuickWebView::loadProgress() const
 {
@@ -269,13 +305,24 @@ void QQuickWebView::loadHtml(const QString &html, const QUrl &baseUrl)
 */
 void QQuickWebView::runJavaScript(const QString &script, const QJSValue &callback)
 {
-    const int callbackId = callback.isCallable() ? callbacks->insertCallback(callback) : -1;
-    runJavaScriptPrivate(script, callbackId);
-}
+    if (callback.isCallable()) {
+        int callbackId = callbacks->insertCallback(callback);
+        QPointer<QQmlEngine> weakEngine = qmlEngine(this);
+        m_webView->runJavaScript(script, [callbackId, weakEngine](const QVariant &result) {
+            QJSValue callback = callbacks->takeCallback(callbackId);
+            if (!weakEngine) {
+                qWarning("No JavaScript engine, unable to handle JavaScript callback!");
+                return;
+            }
 
-void QQuickWebView::runJavaScriptPrivate(const QString &script, int callbackId)
-{
-    m_webView->runJavaScriptPrivate(script, callbackId);
+            Q_ASSERT(callback.isCallable());
+            QJSValueList args;
+            args.append(weakEngine->toScriptValue(result));
+            callback.call(args);
+        });
+    } else {
+        m_webView->runJavaScript(script);
+    }
 }
 
 /*!
@@ -330,48 +377,10 @@ void QQuickWebView::deleteAllCookies()
     m_webView->deleteAllCookies();
 }
 
-void QQuickWebView::itemChange(ItemChange change, const ItemChangeData &value)
-{
-    if (change == QQuickItem::ItemActiveFocusHasChanged) {
-        m_webView->setFocus(value.boolValue);
-    }
-    QQuickItem::itemChange(change, value);
-}
-
-void QQuickWebView::onRunJavaScriptResult(int id, const QVariant &variant)
-{
-    if (id == -1)
-        return;
-
-    QJSValue callback = callbacks->takeCallback(id);
-    if (callback.isUndefined())
-        return;
-
-    QQmlEngine *engine = qmlEngine(this);
-    if (engine == 0) {
-        qWarning("No JavaScript engine, unable to handle JavaScript callback!");
-        return;
-    }
-
-    QJSValueList args;
-    args.append(engine->toScriptValue(variant));
-    callback.call(args);
-}
-
-void QQuickWebView::onFocusRequest(bool focus)
-{
-    setFocus(focus);
-}
-
-void QQuickWebView::onLoadingChanged(const QWebViewLoadRequestPrivate &loadRequest)
+void QQuickWebView::onLoadingChanged(const QWebViewLoadingInfo &loadRequest)
 {
     QQuickWebViewLoadRequest qqLoadRequest(loadRequest);
     Q_EMIT loadingChanged(&qqLoadRequest);
-}
-
-QJSValue QQuickWebView::takeCallback(int id)
-{
-    return callbacks->takeCallback(id);
 }
 
 /*!
@@ -387,4 +396,10 @@ QJSValue QQuickWebView::takeCallback(int id)
 QQuickWebViewSettings *QQuickWebView::settings() const
 {
     return m_settings;
+}
+
+void QQuickWebView::classBegin()
+{
+    m_webView->d->initialize(this);
+    QQuickWindowContainer::classBegin();
 }

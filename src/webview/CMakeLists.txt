@@ -10,14 +10,12 @@ qt_internal_add_module(WebView
     DEPENDENCIES
         QtQuick/auto
     SOURCES
-        qabstractwebview_p.h
-        qnativeviewcontroller_p.h
         qtwebviewfunctions.cpp qtwebviewfunctions.h
-        qwebview.cpp qwebview_p.h
+        qwebview.cpp qwebview.h qwebview_p.h
         qwebview_global.h
         qwebviewfactory.cpp qwebviewfactory_p.h
-        qwebviewinterface_p.h
-        qwebviewloadrequest.cpp qwebviewloadrequest_p.h
+        qwebviewloadinginfo.cpp qwebviewloadinginfo.h
+        qwebviewsettings.cpp qwebviewsettings.h
         qwebviewplugin.cpp qwebviewplugin_p.h
     LIBRARIES
         Qt::CorePrivate
@@ -31,25 +29,23 @@ qt_internal_add_module(WebView
     NO_GENERATE_CPP_EXPORTS
 )
 
-qt_internal_extend_target(WebView CONDITION WIN32 AND TARGET Qt::WebEngineQuick
-    PUBLIC_LIBRARIES
-        Qt::WebEngineQuick
-    DEFINES
-        QTWEBVIEW_LINK_WEBENGINE
-)
-
 if(ANDROID)
     set_property(TARGET WebView APPEND PROPERTY QT_ANDROID_BUNDLED_JAR_DEPENDENCIES
-        jar/QtAndroidWebView.jar
+        jar/Qt${QtWebView_VERSION_MAJOR}AndroidWebView.jar
     )
     set_property(TARGET WebView APPEND PROPERTY QT_ANDROID_LIB_DEPENDENCIES
         ${INSTALL_PLUGINSDIR}/webview/libplugins_webview_qtwebview_android.so
     )
-    set_property(TARGET WebView APPEND PROPERTY QT_ANDROID_PERMISSIONS
-        android.permission.ACCESS_FINE_LOCATION
+    qt_internal_add_android_permission(WebView
+        NAME android.permission.ACCESS_FINE_LOCATION
+    )
+endif()
+
+if(OHOS)
+    qt_internal_add_harmonyos_permission(WebView
+        NAME ohos.permission.INTERNET
     )
 endif()
 qt_internal_add_docs(WebView
     doc/qtwebview.qdocconf
 )
-

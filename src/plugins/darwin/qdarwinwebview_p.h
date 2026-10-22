@@ -1,5 +1,6 @@
 // Copyright (C) 2016 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
+// Qt-Security score:significant reason:default
 
 #ifndef QDARWINWEBVIEW_P_H
 #define QDARWINWEBVIEW_P_H
@@ -19,48 +20,34 @@
 #include <QtCore/qurl.h>
 #include <QtGui/qwindow.h>
 
-#include <private/qabstractwebview_p.h>
+#include <private/qwebview_p.h>
 
 #include <QtCore/qpointer.h>
-
-#if defined(Q_OS_IOS) && defined(__OBJC__)
-#include <UIKit/UIGestureRecognizer.h>
-
-@interface QIOSNativeViewSelectedRecognizer : UIGestureRecognizer <UIGestureRecognizerDelegate>
-{
-@public
-    QNativeViewController *m_item;
-}
-- (id)initWithQWindowControllerItem:(QNativeViewController *)item;
-@end
-#endif
 
 Q_FORWARD_DECLARE_OBJC_CLASS(WKWebView);
 Q_FORWARD_DECLARE_OBJC_CLASS(WKNavigation);
 Q_FORWARD_DECLARE_OBJC_CLASS(WKWebViewConfiguration);
 
-#ifdef Q_OS_IOS
-Q_FORWARD_DECLARE_OBJC_CLASS(UIGestureRecognizer);
-#endif
-
 QT_BEGIN_NAMESPACE
 
-class QDarwinWebViewSettingsPrivate : public QAbstractWebViewSettings
+class QDarwinWebViewSettingsPrivate : public QWebViewSettingsPrivate
 {
-    Q_OBJECT
 public:
-    explicit QDarwinWebViewSettingsPrivate(WKWebViewConfiguration *conf, QObject *p = nullptr);
+    explicit QDarwinWebViewSettingsPrivate(WKWebViewConfiguration *conf);
 
     bool localStorageEnabled() const;
-    bool javascriptEnabled() const;
+    bool javaScriptEnabled() const;
     bool localContentCanAccessFileUrls() const;
     bool allowFileAccess() const;
 
-public Q_SLOTS:
     void setLocalContentCanAccessFileUrls(bool enabled);
-    void setJavascriptEnabled(bool enabled);
+    void setJavaScriptEnabled(bool enabled);
     void setLocalStorageEnabled(bool enabled);
     void setAllowFileAccess(bool enabled);
+
+private:
+    bool doTestAttribute(WebAttribute attribute) const final;
+    void doSetAttribute(WebAttribute attribute, bool value) final;
 
 private:
     WKWebViewConfiguration *m_conf = nullptr;
@@ -68,13 +55,14 @@ private:
     bool m_localContentCanAccessFileUrls = false;
 };
 
-class QDarwinWebViewPrivate : public QAbstractWebView
+class QDarwinWebViewPrivate : public QWebViewPrivate
 {
     Q_OBJECT
 public:
-    explicit QDarwinWebViewPrivate(QObject *p = nullptr);
+    explicit QDarwinWebViewPrivate(QWebView *view);
     ~QDarwinWebViewPrivate() override;
 
+    void initialize(QObject *context) override { Q_UNUSED(context); };
     QString httpUserAgent() const override;
     void setHttpUserAgent(const QString &httpUserAgent) override;
     QUrl url() const override;
@@ -85,16 +73,9 @@ public:
     int loadProgress() const override;
     bool isLoading() const override;
 
-    void setParentView(QObject *view) override;
-    QObject *parentView() const override;
-    void setGeometry(const QRect &geometry) override;
-    void setVisibility(QWindow::Visibility visibility) override;
-    void setVisible(bool visible) override;
-    void setFocus(bool focus) override;
-    void updatePolish() override;
-    QAbstractWebViewSettings *getSettings() const override;
+    QWindow *nativeWindow() const override { return m_window; }
+    QWebViewSettingsPrivate *settings() const override;
 
-public Q_SLOTS:
     void goBack() override;
     void goForward() override;
     void reload() override;
@@ -104,18 +85,14 @@ public Q_SLOTS:
     void deleteCookie(const QString &domain, const QString &name) override;
     void deleteAllCookies() override;
 
-protected:
-    void runJavaScriptPrivate(const QString& script,
-                              int callbackId) override;
+    void runJavaScript(const QString &script,
+                       const std::function<void(const QVariant &)> &resultCallback) override;
 
 public:
     WKWebView *wkWebView;
     WKNavigation *wkNavigation;
     QDarwinWebViewSettingsPrivate *m_settings = nullptr;
-#ifdef Q_OS_IOS
-    UIGestureRecognizer *m_recognizer;
-#endif
-    QPointer<QObject> m_parentView;
+    QWindow *m_window = nullptr;
 };
 
 QT_END_NAMESPACE

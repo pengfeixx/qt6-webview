@@ -1,4 +1,6 @@
 {
-    "Keys": ["native"],
-    "RequiresInit": true
+    "Keys": [
+        "native",
+        "webkit"
+    ]
 }

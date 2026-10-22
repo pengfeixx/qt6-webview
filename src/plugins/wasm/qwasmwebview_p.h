@@ -1,5 +1,6 @@
 // Copyright (C) 2023 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
+// Qt-Security score:significant reason:default
 
 #ifndef QWASMWEBVIEW_P_H
 #define QWASMWEBVIEW_P_H
@@ -17,45 +18,49 @@
 
 #include <QtCore/qobject.h>
 #include <QtCore/qurl.h>
+#include <QtCore/qpointer.h>
 #include <QtGui/qwindow.h>
 #include <QtGui/qpa/qplatformwindow.h>
 #include <QtGui/qpa/qplatformwindow_p.h>
 #include <emscripten/val.h>
 
-#include <private/qabstractwebview_p.h>
+#include <private/qwebview_p.h>
 
 #include <optional>
 
 QT_BEGIN_NAMESPACE
 
-class QWasmWebViewSettingsPrivate final : public QAbstractWebViewSettings
+class QWasmWebViewSettingsPrivate final : public QWebViewSettingsPrivate
 {
-    Q_OBJECT
 public:
-    explicit QWasmWebViewSettingsPrivate(QObject *p = nullptr);
+    explicit QWasmWebViewSettingsPrivate();
 
-    bool localStorageEnabled() const final;
-    bool javascriptEnabled() const final;
-    bool localContentCanAccessFileUrls() const final;
-    bool allowFileAccess() const final;
+    bool localStorageEnabled() const;
+    bool javaScriptEnabled() const;
+    bool localContentCanAccessFileUrls() const;
+    bool allowFileAccess() const;
 
-public Q_SLOTS:
-    void setLocalContentCanAccessFileUrls(bool enabled) final;
-    void setJavascriptEnabled(bool enabled) final;
-    void setLocalStorageEnabled(bool enabled) final;
-    void setAllowFileAccess(bool enabled) final;
+    void setLocalContentCanAccessFileUrls(bool enabled);
+    void setJavaScriptEnabled(bool enabled);
+    void setLocalStorageEnabled(bool enabled);
+    void setAllowFileAccess(bool enabled);
+
+private:
+    bool doTestAttribute(WebAttribute attribute) const final;
+    void doSetAttribute(WebAttribute attribute, bool value) final;
 };
 
-class QWasmWebViewPrivate final : public QAbstractWebView
+class QWasmWebViewPrivate final : public QWebViewPrivate
 {
     Q_OBJECT
 public:
-    explicit QWasmWebViewPrivate(QObject *p = nullptr);
+    explicit QWasmWebViewPrivate(QWebView *view);
     ~QWasmWebViewPrivate() override;
 
+    void initialize(QObject *context) override { Q_UNUSED(context); };
     QString httpUserAgent() const final;
     void setHttpUserAgent(const QString &httpUserAgent) final;
-    QUrl url() const final;
+    QUrl url() const override;
     void setUrl(const QUrl &url) final;
     bool canGoBack() const final;
     bool canGoForward() const final;
@@ -63,13 +68,8 @@ public:
     int loadProgress() const final;
     bool isLoading() const final;
 
-    void setParentView(QObject *view) final;
-    QObject *parentView() const final;
-    void setGeometry(const QRect &geometry) final;
-    void setVisibility(QWindow::Visibility visibility) final;
-    void setVisible(bool visible) final;
+    QWindow *nativeWindow() const override { return m_window; }
 
-public Q_SLOTS:
     void goBack() final;
     void goForward() final;
     void reload() final;
@@ -79,13 +79,14 @@ public Q_SLOTS:
     void deleteCookie(const QString &domain, const QString &name) final;
     void deleteAllCookies() final;
 
+    void runJavaScript(const QString &script,
+                       const std::function<void(const QVariant &)> &resultCallback) final;
+
 protected:
-    void runJavaScriptPrivate(const QString& script,
-                              int callbackId) final;
-    QAbstractWebViewSettings *getSettings() const final;
+    QWebViewSettingsPrivate *settings() const final;
 
 private:
-    void initializeIFrame();
+    Q_INVOKABLE void initializeIFrame();
     void updateGeometry();
 
     QWasmWebViewSettingsPrivate *m_settings;

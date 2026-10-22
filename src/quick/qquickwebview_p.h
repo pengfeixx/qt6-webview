@@ -1,5 +1,6 @@
 // Copyright (C) 2015 The Qt Company Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
+// Qt-Security score:significant reason:default
 
 #ifndef QQUICKWEBVIEW_H
 #define QQUICKWEBVIEW_H
@@ -16,21 +17,22 @@
 //
 
 #include <QtWebViewQuick/private/qtwebviewquickglobal_p.h>
-#include <QtWebViewQuick/private/qquickviewcontroller_p.h>
-#include <QtWebView/private/qwebviewinterface_p.h>
-#include <QtWebView/private/qwebview_p.h>
+#include <QtWebView/qwebview.h>
 #include <QtQml/qqmlregistration.h>
+
+#include <QtQuick/private/qquickwindowcontainer_p.h>
+
 Q_MOC_INCLUDE(<QtWebViewQuick/private/qquickwebviewloadrequest_p.h>)
 Q_MOC_INCLUDE(<QtWebViewQuick/private/qquickwebviewsettings_p.h>)
-Q_MOC_INCLUDE(<QtWebView/private/qwebviewloadrequest_p.h>)
+Q_MOC_INCLUDE(<QtWebView/qwebviewloadinginfo.h>)
 
 QT_BEGIN_NAMESPACE
 
 class QQuickWebViewLoadRequest;
-class QWebViewLoadRequestPrivate;
+class QWebViewLoadingInfo;
 class QQuickWebViewSettings;
 
-class Q_WEBVIEWQUICK_EXPORT QQuickWebView : public QQuickViewController, public QWebViewInterface
+class Q_WEBVIEWQUICK_EXPORT QQuickWebView : public QQuickWindowContainer
 {
     Q_OBJECT
     Q_PROPERTY(QString httpUserAgent READ httpUserAgent WRITE setHttpUserAgent NOTIFY
@@ -42,7 +44,6 @@ class Q_WEBVIEWQUICK_EXPORT QQuickWebView : public QQuickViewController, public 
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY loadingChanged FINAL)
     Q_PROPERTY(bool canGoForward READ canGoForward NOTIFY loadingChanged FINAL)
     Q_PROPERTY(QQuickWebViewSettings *settings READ settings CONSTANT FINAL REVISION(6, 5))
-    Q_ENUMS(LoadStatus)
     QML_NAMED_ELEMENT(WebView)
     QML_ADDED_IN_VERSION(1, 0)
     QML_EXTRA_VERSION(2, 0)
@@ -54,33 +55,38 @@ public:
         LoadSucceededStatus,
         LoadFailedStatus
     };
+    Q_ENUM(LoadStatus)
+
     QQuickWebView(QQuickItem *parent = nullptr);
     ~QQuickWebView();
 
-    QString httpUserAgent() const override;
-    void setHttpUserAgent(const QString &userAgent) override;
-    QUrl url() const override;
-    void setUrl(const QUrl &url) override;
-    int loadProgress() const override;
-    QString title() const override;
-    bool canGoBack() const override;
-    bool isLoading() const override;
-    bool canGoForward() const override;
+    QString httpUserAgent() const ;
+    void setHttpUserAgent(const QString &userAgent);
+    QUrl url() const;
     QWebView &webView() const { return *m_webView; };
-
+    void setUrl(const QUrl &url);
+    int loadProgress() const;
+    QString title() const;
+    bool canGoBack() const;
+    bool isLoading() const;
+    bool canGoForward() const;
+    QWindow *nativeWindow();
     QQuickWebViewSettings *settings() const;
 
+protected:
+    void classBegin() override;
+
 public Q_SLOTS:
-    void goBack() override;
-    void goForward() override;
-    void reload() override;
-    void stop() override;
-    Q_REVISION(1, 1) void loadHtml(const QString &html, const QUrl &baseUrl = QUrl()) override;
+    void goBack();
+    void goForward();
+    void reload();
+    void stop();
+    Q_REVISION(1, 1) void loadHtml(const QString &html, const QUrl &baseUrl = QUrl());
     Q_REVISION(1, 1)
     void runJavaScript(const QString &script, const QJSValue &callback = QJSValue());
-    Q_REVISION(6, 3) void setCookie(const QString &domain, const QString &name, const QString &value) override;
-    Q_REVISION(6, 3) void deleteCookie(const QString &domain, const QString &name) override;
-    Q_REVISION(6, 3) void deleteAllCookies() override;
+    Q_REVISION(6, 3) void setCookie(const QString &domain, const QString &name, const QString &value);
+    Q_REVISION(6, 3) void deleteCookie(const QString &domain, const QString &name);
+    Q_REVISION(6, 3) void deleteAllCookies();
 
 Q_SIGNALS:
     void titleChanged();
@@ -91,19 +97,11 @@ Q_SIGNALS:
     Q_REVISION(6, 3) void cookieAdded(const QString &domain, const QString &name);
     Q_REVISION(6, 3) void cookieRemoved(const QString &domain, const QString &name);
 
-protected:
-    void itemChange(ItemChange change, const ItemChangeData &value) override;
-    void runJavaScriptPrivate(const QString &script, int callbackId) override;
-
 private Q_SLOTS:
-    void onRunJavaScriptResult(int id, const QVariant &variant);
-    void onFocusRequest(bool focus);
-    void onLoadingChanged(const QWebViewLoadRequestPrivate &loadRequest);
+    void onLoadingChanged(const QWebViewLoadingInfo &loadRequest);
 
 private:
     friend class QWebEngineWebViewPrivate;
-    static QJSValue takeCallback(int id);
-
     QWebView *m_webView;
     QQuickWebViewSettings *m_settings;
 };

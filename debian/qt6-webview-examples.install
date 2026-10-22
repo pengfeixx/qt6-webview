@@ -1,1 +1,2 @@
 usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/webview/minibrowser/minibrowser
+usr/lib/${DEB_HOST_MULTIARCH}/qt6/examples/webview/webviewbrowser/bin/webviewbrowser
